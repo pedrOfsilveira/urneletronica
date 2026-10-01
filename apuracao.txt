@@ -1,0 +1,40 @@
+APURACAO DA SESSAO
+UF: RS
+
+Deputado Federal
+  Validos: 0
+  Brancos: 1
+  Nulos: 0
+
+Deputado Estadual
+  Validos: 1
+  Brancos: 0
+  Nulos: 0
+
+Senador (1º voto)
+  Validos: 1
+  Brancos: 0
+  Nulos: 0
+
+Senador (2º voto)
+  Validos: 0
+  Brancos: 1
+  Nulos: 0
+
+Governador
+  Validos: 0
+  Brancos: 1
+  Nulos: 0
+
+Presidente
+  Validos: 1
+  Brancos: 0
+  Nulos: 0
+
+VOTOS REGISTRADOS
+Deputado Federal: branco
+Deputado Estadual: valido 65065
+Senador (1º voto): valido 131
+Senador (2º voto): branco
+Governador: branco
+Presidente: valido 14
