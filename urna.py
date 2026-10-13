@@ -2,7 +2,7 @@ import aroeira as ar
 
 UF = "RS"
 
-tela = ar.Tela("Urna", 960, 540, "cinza")
+tela = ar.Tela("Urna", 960, 540)
 stringVoto = ""
 contagem = 0
 pronto = False
@@ -130,6 +130,9 @@ def mostrar_candidato(cargo, numero):
         colocar_texto(20, 120, "NÚMERO ERRADO", 22, True)
         colocar_texto(20, 155, "VOTO NULO", 18, True)
         return "nulo"
+    
+    #dados[0] = Nome
+    #dados[1] = Partido
 
     colocar_texto(20, 120, dados[0], 22, True)
     colocar_texto(20, 150, dados[1], 18, False)
@@ -160,9 +163,7 @@ def iniciar_conferencia():
 
     aguardando_conferencia = True
     ticks_conferencia = 0
-    texto_conferencia = ar.Texto(
-        ar.Ponto(20, 250), "CONFIRA SEU VOTO", 18, "preto", True
-    )
+    texto_conferencia = ar.Texto(ar.Ponto(20, 250), "CONFIRA SEU VOTO", 18, "preto", True)
     tela.adicionar(texto_conferencia)
     painel_elementos.append(texto_conferencia)
 
@@ -187,7 +188,6 @@ def voto(num):
 
     max_digitos = digitos_cargo[contagem]
     if len(stringVoto) >= max_digitos:
-        bip()
         return
 
     stringVoto = stringVoto + str(num)
@@ -249,7 +249,6 @@ def branco():
     if em_fim or aguardando_conferencia:
         return
     if stringVoto != "" or tipo_voto != "":
-        bip()
         return
 
     tipo_voto = "branco"
@@ -269,9 +268,10 @@ def registrar_voto():
     chave = chaves_apuracao[contagem]
     apuracao[chave][tipo_voto] = apuracao[chave][tipo_voto] + 1
 
-    texto = chave + ": " + tipo_voto
+    texto = tipo_voto + ','
     if stringVoto != "":
-        texto = texto + " " + stringVoto
+        texto = stringVoto + ','
+        print(stringVoto)
     votosAnotados.append(texto)
 
     if contagem == 2 and tipo_voto == "valido":
@@ -284,11 +284,8 @@ def confirma():
     if em_fim or aguardando_conferencia:
         return
     if not pronto:
-        bip()
         return
-
     if contagem == 3 and tipo_voto == "valido" and stringVoto == voto_senador_1:
-        bip()
         return
 
     registrar_voto()
@@ -297,6 +294,7 @@ def confirma():
         limpar_painel()
         textocandidato.conteudo = ""
         colocar_texto(200, 200, "FIM", 80, True)
+        salvar_apuracao()
         em_fim = True
         ticks_fim = 0
         return
@@ -311,7 +309,7 @@ def tick_urna():
 
     if aguardando_conferencia:
         ticks_conferencia = ticks_conferencia + 1
-        if ticks_conferencia >= 60:
+        if ticks_conferencia >= 50:
             finalizar_conferencia()
         return
 
@@ -328,26 +326,16 @@ def tick_urna():
 
 
 def salvar_apuracao():
-    arquivo = open("apuracao.txt", "w")
-    arquivo.write("APURACAO DA SESSAO\n")
-    arquivo.write("UF: " + UF + "\n\n")
-
-    for i in range(len(chaves_apuracao)):
-        cargo = chaves_apuracao[i]
-        arquivo.write(cargo + "\n")
-        arquivo.write("  Validos: " + str(apuracao[cargo]["valido"]) + "\n")
-        arquivo.write("  Brancos: " + str(apuracao[cargo]["branco"]) + "\n")
-        arquivo.write("  Nulos: " + str(apuracao[cargo]["nulo"]) + "\n\n")
-
-    arquivo.write("VOTOS REGISTRADOS\n")
+    global votosAnotados
+    arquivo = open("apuracao.csv", "a")
+    
     for i in range(len(votosAnotados)):
-        arquivo.write(votosAnotados[i] + "\n")
+        arquivo.write(votosAnotados[i])
 
+    votosAnotados = []
+    arquivo.write('\n')
     arquivo.close()
 
-
-def ao_fechar():
-    salvar_apuracao()
 
 
 textocandidato = ar.Texto(
@@ -358,26 +346,20 @@ tela.adicionar(textocandidato)
 botao1 = ar.Botao(ar.Ponto(tecladoX, tecladoY), "1", num1, "preto")
 botao2 = ar.Botao(ar.Ponto(tecladoX + 60, tecladoY), "2", num2, "preto")
 botao3 = ar.Botao(ar.Ponto(tecladoX + 120, tecladoY), "3", num3, "preto")
+
 botao4 = ar.Botao(ar.Ponto(tecladoX, tecladoY + 40), "4", num4, "preto")
 botao5 = ar.Botao(ar.Ponto(tecladoX + 60, tecladoY + 40), "5", num5, "preto")
 botao6 = ar.Botao(ar.Ponto(tecladoX + 120, tecladoY + 40), "6", num6, "preto")
+
 botao7 = ar.Botao(ar.Ponto(tecladoX, tecladoY + 80), "7", num7, "preto")
 botao8 = ar.Botao(ar.Ponto(tecladoX + 60, tecladoY + 80), "8", num8, "preto")
 botao9 = ar.Botao(ar.Ponto(tecladoX + 120, tecladoY + 80), "9", num9, "preto")
+
 botao0 = ar.Botao(ar.Ponto(tecladoX + 60, tecladoY + 120), "0", num0, "preto")
-botaobranco = ar.Botao(
-    ar.Ponto(tecladoX + 180, tecladoY),
-    "BRANCO",
-    branco,
-    "branco",
-    "preto",
-)
-botaocorrige = ar.Botao(
-    ar.Ponto(tecladoX + 180, tecladoY + 40), "CORRIGE", corrige, "laranja", "preto"
-)
-botaoconfirma = ar.Botao(
-    ar.Ponto(tecladoX + 180, tecladoY + 80), "CONFIRMA", confirma, "verde", "preto"
-)
+
+botaobranco = ar.Botao(ar.Ponto(tecladoX + 180, tecladoY), "BRANCO", branco, "branco", "preto")
+botaocorrige = ar.Botao(ar.Ponto(tecladoX + 180, tecladoY + 40), "CORRIGE", corrige, "laranja", "preto")
+botaoconfirma = ar.Botao(ar.Ponto(tecladoX + 180, tecladoY + 80), "CONFIRMA", confirma, "verde", "preto")
 
 tela.adicionar(botao1)
 tela.adicionar(botao2)
@@ -393,6 +375,5 @@ tela.adicionar(botaobranco)
 tela.adicionar(botaocorrige)
 tela.adicionar(botaoconfirma)
 
-tela.ao_fechar(ao_fechar)
 tela.animar(tick_urna, fps=60)
 tela.executar()
