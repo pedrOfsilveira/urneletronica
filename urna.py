@@ -1,34 +1,9 @@
 import aroeira as ar
 
 UF = "RS"
+URL_FOTOS = "https://resultados.tse.jus.br/oficial/ele2026/"
 
-tela = ar.Tela("Urna", 960, 540, "cinza")
-stringVoto = ""
-contagem = 0
-pronto = False
-tipo_voto = ""
-aguardando_conferencia = False
-ticks_conferencia = 0
-texto_conferencia = None
-painel_elementos = []
-numtextos = []
-em_fim = False
-ticks_fim = 0
-voto_senador_1 = ""
-
-tecladoX = 580
-tecladoY = 150
-
-nomes_cargo = [
-    "Deputado Federal",
-    "Deputado Estadual",
-    "Senador",
-    "Senador",
-    "Governador",
-    "Presidente",
-]
-
-cargos_csv = [
+cargos = [
     "DEPUTADO FEDERAL",
     "DEPUTADO ESTADUAL",
     "SENADOR",
@@ -37,362 +12,343 @@ cargos_csv = [
     "PRESIDENTE",
 ]
 
-digitos_cargo = [4, 5, 3, 3, 2, 2]
+digitos = [4, 5, 3, 3, 2, 2]
 
-chaves_apuracao = [
-    "Deputado Federal",
-    "Deputado Estadual",
-    "Senador (1º voto)",
-    "Senador (2º voto)",
-    "Governador",
-    "Presidente",
-]
-
-apuracao = {}
-votosAnotados = []
 candidatos = {}
+votos = []
+elementos_painel = []
+caixas_numeros = []
 
-for chave in chaves_apuracao:
-    apuracao[chave] = {"valido": 0, "branco": 0, "nulo": 0}
+etapa = 0
+numero_digitado = ""
+tipo_voto = ""
+primeiro_senador = ""
+estado = "digitando"
+quadros = 0
+texto_aviso = None
 
 
-def ler_csv(nome_arquivo):
-    arquivo = open(nome_arquivo, encoding="latin-1")
-    cabecalho = arquivo.readline()
-    colunas = cabecalho.replace('"', "").split(";")
+def carregar_candidatos(uf):
+    caminho = "consulta_cand_2026/consulta_cand_2026_" + uf + ".csv"
+    arquivo = open(caminho, encoding="latin-1")
+    cabecalho = arquivo.readline().strip().replace('"', "").split(";")
 
-    i_cargo = colunas.index("DS_CARGO")
-    i_numero = colunas.index("NR_CANDIDATO")
-    i_nome = colunas.index("NM_URNA_CANDIDATO")
-    i_partido = colunas.index("SG_PARTIDO")
+    coluna_cargo = cabecalho.index("DS_CARGO")
+    coluna_numero = cabecalho.index("NR_CANDIDATO")
+    coluna_nome = cabecalho.index("NM_URNA_CANDIDATO")
+    coluna_partido = cabecalho.index("SG_PARTIDO")
+    coluna_eleicao = cabecalho.index("CD_ELEICAO")
+    coluna_regiao = cabecalho.index("SG_UE")
+    coluna_codigo = cabecalho.index("SQ_CANDIDATO")
 
-    linha = arquivo.readline()
-    while linha != "":
-        campos = linha.replace('"', "").split(";")
-        cargo = campos[i_cargo]
-        numero = campos[i_numero]
-        nome = campos[i_nome]
-        partido = campos[i_partido]
-        chave = cargo + ";" + numero
+    for linha in arquivo:
+        campos = linha.strip().replace('"', "").split(";")
+        chave = campos[coluna_cargo] + ";" + campos[coluna_numero]
+        eleicao = campos[coluna_eleicao]
+        regiao = campos[coluna_regiao].lower()
+        codigo = campos[coluna_codigo]
+        foto = URL_FOTOS + eleicao + "/fotos/" + regiao + "/" + codigo + ".jpeg"
 
         if chave not in candidatos:
-            candidatos[chave] = [nome, partido]
-
-        linha = arquivo.readline()
+            candidatos[chave] = {
+                "nome": campos[coluna_nome],
+                "partido": campos[coluna_partido],
+                "foto": foto,
+            }
 
     arquivo.close()
 
 
-ler_csv("consulta_cand_2026/consulta_cand_2026_" + UF + ".csv")
-ler_csv("consulta_cand_2026/consulta_cand_2026_BR.csv")
-
-
-def bip():
-    print("bip")
-
-
-def limpar_painel():
-    global stringVoto, pronto, tipo_voto, aguardando_conferencia, ticks_conferencia
-    global texto_conferencia
-
-    for elemento in numtextos:
-        tela.remover(elemento)
-    numtextos.clear()
-
-    for elemento in painel_elementos:
-        tela.remover(elemento)
-    painel_elementos.clear()
-
-    stringVoto = ""
-    pronto = False
-    tipo_voto = ""
-    aguardando_conferencia = False
-    ticks_conferencia = 0
-    texto_conferencia = None
-
-
-def colocar_texto(x, y, texto, tamanho, negrito):
-    item = ar.Texto(ar.Ponto(x, y), texto, tamanho, "preto", negrito)
-    tela.adicionar(item)
-    painel_elementos.append(item)
-
-
-def buscar(cargo, numero):
+def buscar_candidato(cargo, numero):
     chave = cargo + ";" + numero
     if chave in candidatos:
         return candidatos[chave]
     return None
 
 
+def adicionar_ao_painel(elemento):
+    tela.adicionar(elemento)
+    elementos_painel.append(elemento)
+
+
+def mostrar_texto(x, y, conteudo, tamanho=35, negrito=False):
+    texto = ar.Texto(ar.Ponto(x, y), conteudo, tamanho, "preto", negrito)
+    adicionar_ao_painel(texto)
+    return texto
+
+
+def limpar_painel():
+    for elemento in elementos_painel:
+        tela.remover(elemento)
+    elementos_painel.clear()
+    caixas_numeros.clear()
+
+
+def iniciar_cargo():
+    global numero_digitado, tipo_voto, estado, quadros
+
+    limpar_painel()
+    numero_digitado = ""
+    tipo_voto = ""
+    estado = "digitando"
+    quadros = 0
+    texto_cargo.conteudo = cargos[etapa].title()
+
+    for posicao in range(digitos[etapa]):
+        caixa = ar.Retangulo(
+            ar.Ponto(40 + posicao * 60, 100),
+            largura=50,
+            altura=70,
+            cor="branco",
+            borda="preto",
+            espessura_borda=3,
+        )
+        adicionar_ao_painel(caixa)
+        caixas_numeros.append(caixa)
+
+
+def mostrar_acompanhante(cargo, numero, titulo, y):
+    candidato = buscar_candidato(cargo, numero)
+    if candidato is not None:
+        texto = titulo + candidato["nome"] + " (" + candidato["partido"] + ")"
+        mostrar_texto(37, y, texto, 30)
+
+
 def mostrar_candidato(cargo, numero):
-    dados = buscar(cargo, numero)
-    if dados == None:
-        colocar_texto(20, 120, "NÚMERO ERRADO", 22, True)
-        colocar_texto(20, 155, "VOTO NULO", 18, True)
+    candidato = buscar_candidato(cargo, numero)
+
+    if candidato is None:
+        mostrar_texto(37, 190, "NÚMERO ERRADO", 45)
+        mostrar_texto(250, 600, "VOTO NULO", 50, True)
         return "nulo"
 
-    colocar_texto(20, 120, dados[0], 22, True)
-    colocar_texto(20, 150, dados[1], 18, False)
+    if etapa == 3 and numero == primeiro_senador:
+        mostrar_texto(37, 190, "CANDIDATO REPETIDO", 45)
+        mostrar_texto(250, 600, "VOTO NULO", 50, True)
+        return "nulo"
+
+    mostrar_texto(37, 220, candidato["nome"], 35, True)
+    mostrar_texto(37, 310, candidato["partido"])
+    foto = ar.Imagem(ar.Ponto(1000, 100), candidato["foto"], largura=250, altura=320)
+    adicionar_ao_painel(foto)
 
     if cargo == "GOVERNADOR":
-        vice = buscar("VICE-GOVERNADOR", numero)
-        if vice != None:
-            colocar_texto(20, 180, "Vice: " + vice[0] + " (" + vice[1] + ")", 16, False)
+        mostrar_acompanhante("VICE-GOVERNADOR", numero, "Vice: ", 400)
     elif cargo == "PRESIDENTE":
-        vice = buscar("VICE-PRESIDENTE", numero)
-        if vice != None:
-            colocar_texto(20, 180, "Vice: " + vice[0] + " (" + vice[1] + ")", 16, False)
+        mostrar_acompanhante("VICE-PRESIDENTE", numero, "Vice: ", 400)
     elif cargo == "SENADOR":
-        s1 = buscar("1º SUPLENTE", numero)
-        s2 = buscar("2º SUPLENTE", numero)
-        y = 180
-        if s1 != None:
-            colocar_texto(20, y, "1º suplente: " + s1[0] + " (" + s1[1] + ")", 16, False)
-            y = y + 24
-        if s2 != None:
-            colocar_texto(20, y, "2º suplente: " + s2[0] + " (" + s2[1] + ")", 16, False)
+        mostrar_acompanhante("1º SUPLENTE", numero, "1º suplente: ", 400)
+        mostrar_acompanhante("2º SUPLENTE", numero, "2º suplente: ", 490)
 
     return "valido"
 
 
 def iniciar_conferencia():
-    global aguardando_conferencia, ticks_conferencia, texto_conferencia
+    global estado, quadros, texto_aviso
 
-    aguardando_conferencia = True
-    ticks_conferencia = 0
-    texto_conferencia = ar.Texto(
-        ar.Ponto(20, 250), "CONFIRA SEU VOTO", 18, "preto", True
-    )
-    tela.adicionar(texto_conferencia)
-    painel_elementos.append(texto_conferencia)
+    estado = "conferindo"
+    quadros = 0
+    linha = ar.Linha(ar.Ponto(10, 700), ar.Ponto(900, 700), espessura=4)
+    adicionar_ao_painel(linha)
+    texto_aviso = mostrar_texto(37, 710, "CONFIRA SEU VOTO", 35, True)
 
 
-def finalizar_conferencia():
-    global aguardando_conferencia, pronto, texto_conferencia
+def digitar_numero(numero):
+    global numero_digitado, tipo_voto
 
-    if texto_conferencia != None:
-        tela.remover(texto_conferencia)
-        painel_elementos.remove(texto_conferencia)
-        texto_conferencia = None
-
-    aguardando_conferencia = False
-    pronto = True
-
-
-def voto(num):
-    global stringVoto, tipo_voto
-
-    if em_fim or pronto or aguardando_conferencia or tipo_voto != "":
+    if estado != "digitando":
         return
 
-    max_digitos = digitos_cargo[contagem]
-    if len(stringVoto) >= max_digitos:
-        bip()
-        return
+    posicao = len(numero_digitado)
+    caixas_numeros[posicao].borda = "preto"
+    numero_digitado = numero_digitado + str(numero)
+    mostrar_texto(50 + posicao * 60, 95, str(numero), 50, True)
 
-    stringVoto = stringVoto + str(num)
-    item = ar.Texto(
-        ar.Ponto(20 + len(stringVoto) * 30, 60), str(num), 25, "preto", True
-    )
-    numtextos.append(item)
-    tela.adicionar(item)
-
-    if len(stringVoto) == max_digitos:
-        cargo = cargos_csv[contagem]
-        tipo_voto = mostrar_candidato(cargo, stringVoto)
+    if len(numero_digitado) == digitos[etapa]:
+        tipo_voto = mostrar_candidato(cargos[etapa], numero_digitado)
         iniciar_conferencia()
 
 
-def num0():
-    voto(0)
+def digitar_zero():
+    digitar_numero(0)
 
 
-def num1():
-    voto(1)
+def digitar_um():
+    digitar_numero(1)
 
 
-def num2():
-    voto(2)
+def digitar_dois():
+    digitar_numero(2)
 
 
-def num3():
-    voto(3)
+def digitar_tres():
+    digitar_numero(3)
 
 
-def num4():
-    voto(4)
+def digitar_quatro():
+    digitar_numero(4)
 
 
-def num5():
-    voto(5)
+def digitar_cinco():
+    digitar_numero(5)
 
 
-def num6():
-    voto(6)
+def digitar_seis():
+    digitar_numero(6)
 
 
-def num7():
-    voto(7)
+def digitar_sete():
+    digitar_numero(7)
 
 
-def num8():
-    voto(8)
+def digitar_oito():
+    digitar_numero(8)
 
 
-def num9():
-    voto(9)
+def digitar_nove():
+    digitar_numero(9)
 
 
-def branco():
+def votar_em_branco():
     global tipo_voto
 
-    if em_fim or aguardando_conferencia:
-        return
-    if stringVoto != "" or tipo_voto != "":
-        bip()
+    if estado != "digitando" or numero_digitado != "":
         return
 
+    limpar_painel()
     tipo_voto = "branco"
-    colocar_texto(20, 120, "VOTO EM BRANCO", 22, True)
+    mostrar_texto(170, 290, "VOTO EM BRANCO", 60, True)
     iniciar_conferencia()
 
 
-def corrige():
-    if em_fim or aguardando_conferencia:
-        return
-    limpar_painel()
+def corrigir():
+    if estado == "digitando" or estado == "pronto":
+        iniciar_cargo()
 
 
-def registrar_voto():
-    global voto_senador_1
-
-    chave = chaves_apuracao[contagem]
-    apuracao[chave][tipo_voto] = apuracao[chave][tipo_voto] + 1
-
-    texto = chave + ": " + tipo_voto
-    if stringVoto != "":
-        texto = texto + " " + stringVoto
-    votosAnotados.append(texto)
-
-    if contagem == 2 and tipo_voto == "valido":
-        voto_senador_1 = stringVoto
-
-
-def confirma():
-    global contagem, voto_senador_1, em_fim, ticks_fim
-
-    if em_fim or aguardando_conferencia:
-        return
-    if not pronto:
-        bip()
-        return
-
-    if contagem == 3 and tipo_voto == "valido" and stringVoto == voto_senador_1:
-        bip()
-        return
-
-    registrar_voto()
-
-    if contagem == len(nomes_cargo) - 1:
-        limpar_painel()
-        textocandidato.conteudo = ""
-        colocar_texto(200, 200, "FIM", 80, True)
-        em_fim = True
-        ticks_fim = 0
-        return
-
-    limpar_painel()
-    contagem = contagem + 1
-    textocandidato.conteudo = nomes_cargo[contagem]
-
-
-def tick_urna():
-    global ticks_fim, ticks_conferencia, contagem, voto_senador_1, em_fim
-
-    if aguardando_conferencia:
-        ticks_conferencia = ticks_conferencia + 1
-        if ticks_conferencia >= 60:
-            finalizar_conferencia()
-        return
-
-    if not em_fim:
-        return
-
-    ticks_fim = ticks_fim + 1
-    if ticks_fim >= 120:
-        limpar_painel()
-        contagem = 0
-        voto_senador_1 = ""
-        em_fim = False
-        textocandidato.conteudo = nomes_cargo[0]
-
-
-def salvar_apuracao():
-    arquivo = open("apuracao.txt", "w")
-    arquivo.write("APURACAO DA SESSAO\n")
-    arquivo.write("UF: " + UF + "\n\n")
-
-    for i in range(len(chaves_apuracao)):
-        cargo = chaves_apuracao[i]
-        arquivo.write(cargo + "\n")
-        arquivo.write("  Validos: " + str(apuracao[cargo]["valido"]) + "\n")
-        arquivo.write("  Brancos: " + str(apuracao[cargo]["branco"]) + "\n")
-        arquivo.write("  Nulos: " + str(apuracao[cargo]["nulo"]) + "\n\n")
-
-    arquivo.write("VOTOS REGISTRADOS\n")
-    for i in range(len(votosAnotados)):
-        arquivo.write(votosAnotados[i] + "\n")
-
+def salvar_votos():
+    arquivo = open("apuracao.csv", "a", encoding="utf-8")
+    for voto in votos:
+        arquivo.write(voto + ",")
+    arquivo.write("\n")
     arquivo.close()
+    votos.clear()
 
 
-def ao_fechar():
-    salvar_apuracao()
+def confirmar():
+    global etapa, primeiro_senador, estado, quadros
+
+    if estado != "pronto":
+        return
+
+    if numero_digitado == "":
+        votos.append(tipo_voto)
+    else:
+        votos.append(numero_digitado)
+
+    if etapa == 2 and tipo_voto == "valido":
+        primeiro_senador = numero_digitado
+
+    etapa = etapa + 1
+
+    if etapa < len(cargos):
+        iniciar_cargo()
+    else:
+        salvar_votos()
+        limpar_painel()
+        texto_cargo.conteudo = ""
+        mostrar_texto(200, 200, "FIM", 80, True)
+        estado = "fim"
+        quadros = 0
 
 
-textocandidato = ar.Texto(
-    ar.Ponto(20, 20), nomes_cargo[contagem], 25, "preto", True
+def atualizar_tela():
+    global quadros, estado, etapa, primeiro_senador
+
+    quadros = quadros + 1
+
+    if estado == "conferindo" and quadros >= 50:
+        estado = "pronto"
+        texto_aviso.conteudo = "Aperte a tecla:"
+        mostrar_texto(130, 770, "CONFIRMA para CONFIRMAR este voto")
+        mostrar_texto(165, 830, "CORRIGE para REINICIAR este voto")
+    elif estado == "fim" and quadros >= 120:
+        etapa = 0
+        primeiro_senador = ""
+        iniciar_cargo()
+    elif estado == "digitando" and quadros % 20 == 0:
+        caixa = caixas_numeros[len(numero_digitado)]
+        if caixa.borda == "preto":
+            caixa.borda = "cinza"
+        else:
+            caixa.borda = "preto"
+
+
+carregar_candidatos(UF)
+carregar_candidatos("BR")
+
+tela = ar.Tela("Urna", 1920, 1000, "cinza")
+fundo = ar.Retangulo(
+    ar.Ponto(10, 10),
+    largura=1300,
+    altura=990,
+    cor="branco",
+    borda="preto",
+    espessura_borda=4,
 )
-tela.adicionar(textocandidato)
+tela.adicionar(fundo)
 
-botao1 = ar.Botao(ar.Ponto(tecladoX, tecladoY), "1", num1, "preto")
-botao2 = ar.Botao(ar.Ponto(tecladoX + 60, tecladoY), "2", num2, "preto")
-botao3 = ar.Botao(ar.Ponto(tecladoX + 120, tecladoY), "3", num3, "preto")
-botao4 = ar.Botao(ar.Ponto(tecladoX, tecladoY + 40), "4", num4, "preto")
-botao5 = ar.Botao(ar.Ponto(tecladoX + 60, tecladoY + 40), "5", num5, "preto")
-botao6 = ar.Botao(ar.Ponto(tecladoX + 120, tecladoY + 40), "6", num6, "preto")
-botao7 = ar.Botao(ar.Ponto(tecladoX, tecladoY + 80), "7", num7, "preto")
-botao8 = ar.Botao(ar.Ponto(tecladoX + 60, tecladoY + 80), "8", num8, "preto")
-botao9 = ar.Botao(ar.Ponto(tecladoX + 120, tecladoY + 80), "9", num9, "preto")
-botao0 = ar.Botao(ar.Ponto(tecladoX + 60, tecladoY + 120), "0", num0, "preto")
-botaobranco = ar.Botao(
-    ar.Ponto(tecladoX + 180, tecladoY),
-    "BRANCO",
-    branco,
-    "branco",
-    "preto",
+texto_cargo = ar.Texto(ar.Ponto(37, 15), "", 45, "preto", True)
+tela.adicionar(texto_cargo)
+
+moldura = ar.Retangulo(
+    ar.Ponto(1375, 280),
+    largura=500,
+    altura=475,
+    cor="#212121",
+    borda="#616161",
+    espessura_borda=3,
 )
-botaocorrige = ar.Botao(
-    ar.Ponto(tecladoX + 180, tecladoY + 40), "CORRIGE", corrige, "laranja", "preto"
+tela.adicionar(moldura)
+
+titulo_teclado = ar.Texto(ar.Ponto(1540, 300), "TECLADO DE VOTAÇÃO", 15, "branco", True)
+tela.adicionar(titulo_teclado)
+
+acoes_numeros = [
+    digitar_um,
+    digitar_dois,
+    digitar_tres,
+    digitar_quatro,
+    digitar_cinco,
+    digitar_seis,
+    digitar_sete,
+    digitar_oito,
+    digitar_nove,
+]
+
+for posicao in range(9):
+    coluna = posicao % 3
+    linha = posicao // 3
+    ponto = ar.Ponto(1400 + coluna * 155, 350 + linha * 65)
+    botao = ar.Botao(
+        ponto, str(posicao + 1), acoes_numeros[posicao], "preto", "branco", 140
+    )
+    tela.adicionar(botao)
+
+botao_zero = ar.Botao(ar.Ponto(1555, 545), "0", digitar_zero, "preto", "branco", 140)
+botao_branco = ar.Botao(
+    ar.Ponto(1400, 625), "BRANCO", votar_em_branco, "branco", "preto", 225
 )
-botaoconfirma = ar.Botao(
-    ar.Ponto(tecladoX + 180, tecladoY + 80), "CONFIRMA", confirma, "verde", "preto"
+botao_corrige = ar.Botao(
+    ar.Ponto(1640, 625), "CORRIGE", corrigir, "laranja", "preto", 225
+)
+botao_confirma = ar.Botao(
+    ar.Ponto(1400, 690), "CONFIRMA", confirmar, "verde", "branco", 450
 )
 
-tela.adicionar(botao1)
-tela.adicionar(botao2)
-tela.adicionar(botao3)
-tela.adicionar(botao4)
-tela.adicionar(botao5)
-tela.adicionar(botao6)
-tela.adicionar(botao7)
-tela.adicionar(botao8)
-tela.adicionar(botao9)
-tela.adicionar(botao0)
-tela.adicionar(botaobranco)
-tela.adicionar(botaocorrige)
-tela.adicionar(botaoconfirma)
+for botao in [botao_zero, botao_branco, botao_corrige, botao_confirma]:
+    tela.adicionar(botao)
 
-tela.ao_fechar(ao_fechar)
-tela.animar(tick_urna, fps=60)
+iniciar_cargo()
+tela.animar(atualizar_tela, fps=60)
 tela.executar()
